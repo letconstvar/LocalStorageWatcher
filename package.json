@@ -1,0 +1,41 @@
+{
+  "private": false,
+  "name": "localstorage-watcher-powerful",
+  "version": "1.0.1",
+  "description": "A watcher for localStorage changes",
+  "main": "dist/index.js",
+  "module": "dist/index.esm.js",
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "rollup -c",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "localStorage",
+    "watcher",
+    "storage"
+  ],
+  "email": "zhouzhu96@gmail.com",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/letconstvar/LocalStorageWatcher.git"
+  },
+  "author": "zhouzhu",
+  "license": "ISC",
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.5",
+    "rollup": "^4.1.4",
+    "typescript": "^5.2.2",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "tslib": "^2.6.2"
+  }
+}
