@@ -26,6 +26,14 @@ class LocalStorageWatcher {
     }
   }
 
+  private static shouldStringify(value: any): boolean {
+    return (
+      value !== null &&
+      typeof value === 'object' ||
+      Array.isArray(value)
+    )
+  }
+
   static init() {
     if (this.isInitialized) {
       console.warn('LocalStorageWatcher already initialized')
@@ -34,15 +42,15 @@ class LocalStorageWatcher {
 
     localStorage.setItem = (key: string, value: any) => {
       const oldValue = localStorage.getItem(key)
-      const stringValue = JSON.stringify(value)
+      const stringValue = this.shouldStringify(value) ? JSON.stringify(value) : String(value)
 
       this.originalSetItem.call(localStorage, key, stringValue)
       
       try {
         this.handleStorageChange(
           key, 
-          value, 
-          oldValue ? JSON.parse(oldValue) : null
+          value,
+          oldValue ? (this.shouldStringify(oldValue) ? JSON.parse(oldValue) : oldValue) : null
         )
 
         this.channel.postMessage({
