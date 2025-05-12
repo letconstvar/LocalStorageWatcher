@@ -1,148 +1,168 @@
 class LocalStorageWatcher {
-  private static instance: LocalStorageWatcher
-  private static originalSetItem = localStorage.setItem
-  private static handlers: Record<string, Array<(newValue: any, oldValue: any) => void>> = {}
-  private static channel = new BroadcastChannel('localStorage-channel')
-  private static isInitialized = false
-  private static debug = false
-  private static MAX_LISTENERS_PER_KEY = 10
+  private static instance: LocalStorageWatcher;
+  private static originalSetItem = localStorage.setItem;
+  private static handlers: Record<
+    string,
+    Array<(newValue: any, oldValue: any) => void>
+  > = {};
+  private static channel = new BroadcastChannel("localStorage-channel");
+  private static isInitialized = false;
+  private static debug = false;
+  private static MAX_LISTENERS_PER_KEY = 10;
 
   private constructor() {}
 
   static getInstance() {
     if (!this.instance) {
-      this.instance = new LocalStorageWatcher()
+      this.instance = new LocalStorageWatcher();
     }
-    return this.instance
+    return this.instance;
   }
 
   static enableDebug() {
-    this.debug = true
+    this.debug = true;
   }
 
   private static log(message: string) {
     if (this.debug) {
-      console.log(`[LocalStorageWatcher] ${message}`)
+      console.log(`[LocalStorageWatcher] ${message}`);
     }
   }
 
   private static shouldStringify(value: any): boolean {
     return (
-      value !== null &&
-      typeof value === 'object' ||
-      Array.isArray(value)
-    )
+      (value !== null && typeof value === "object") || Array.isArray(value)
+    );
+  }
+
+  private static parseJSON(value: string | null): any {
+    if (!value) return null;
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
   }
 
   static init() {
     if (this.isInitialized) {
-      console.warn('LocalStorageWatcher already initialized')
-      return
+      console.warn("LocalStorageWatcher already initialized");
+      return;
     }
 
     localStorage.setItem = (key: string, value: any) => {
-      const oldValue = localStorage.getItem(key)
-      const stringValue = this.shouldStringify(value) ? JSON.stringify(value) : String(value)
+      const oldValue = localStorage.getItem(key);
+      const stringValue = this.shouldStringify(value)
+        ? JSON.stringify(value)
+        : String(value);
 
-      this.originalSetItem.call(localStorage, key, stringValue)
-      
+      this.originalSetItem.call(localStorage, key, stringValue);
+
       try {
         this.handleStorageChange(
-          key, 
+          key,
           value,
-          oldValue ? (this.shouldStringify(oldValue) ? JSON.parse(oldValue) : oldValue) : null
-        )
+          oldValue
+            ? this.shouldStringify(oldValue)
+              ? this.parseJSON(oldValue)
+              : oldValue
+            : null
+        );
 
         this.channel.postMessage({
           key,
           newValue: stringValue,
-          oldValue
-        })
+          oldValue,
+        });
       } catch (error) {
-        this.log(`Storage change error: ${error}`)
+        this.log(`Storage change error: ${error}`);
       }
-    }
+    };
 
     this.channel.onmessage = (event) => {
-      const { key, newValue, oldValue } = event.data
+      const { key, newValue, oldValue } = event.data;
       this.handleStorageChange(
-        key, 
-        JSON.parse(newValue), 
-        oldValue ? JSON.parse(oldValue) : null
-      )
-    }
+        key,
+        this.parseJSON(newValue),
+        oldValue ? this.parseJSON(oldValue) : null
+      );
+    };
 
-    window.addEventListener('storage', (event: StorageEvent) => {
+    window.addEventListener("storage", (event: StorageEvent) => {
       if (event.storageArea === localStorage) {
         this.handleStorageChange(
-          event.key as string, 
-          event.newValue ? JSON.parse(event.newValue) : null, 
-          event.oldValue ? JSON.parse(event.oldValue) : null
-        )
+          event.key as string,
+          event.newValue ? this.parseJSON(event.newValue) : null,
+          event.oldValue ? this.parseJSON(event.oldValue) : null
+        );
       }
-    })
+    });
 
-    this.isInitialized = true
+    this.isInitialized = true;
   }
 
-  private static handleStorageChange(key: string, newValue: any, oldValue: any) {
+  private static handleStorageChange(
+    key: string,
+    newValue: any,
+    oldValue: any
+  ) {
     try {
       if (this.handlers[key]) {
         this.handlers[key].forEach((handler) => {
           try {
-            handler(newValue, oldValue)
+            handler(newValue, oldValue);
           } catch (error) {
-            this.log(`Handler error for key ${key}: ${error}`)
+            this.log(`Handler error for key ${key}: ${error}`);
           }
-        })
+        });
       }
     } catch (error) {
-      this.log(`Storage change error: ${error}`)
+      this.log(`Storage change error: ${error}`);
     }
   }
 
   static watch(key: string, handler: (newValue: any, oldValue: any) => void) {
     if (!this.handlers[key]) {
-      this.handlers[key] = []
+      this.handlers[key] = [];
     }
 
     if (this.handlers[key].length >= this.MAX_LISTENERS_PER_KEY) {
-      console.warn(`Exceeded maximum listeners for key ${key}`)
-      return
+      console.warn(`Exceeded maximum listeners for key ${key}`);
+      return;
     }
 
-    this.handlers[key].push(handler)
+    this.handlers[key].push(handler);
   }
 
   static watchWithDebounce(
-    key: string, 
-    handler: (newValue: any, oldValue: any) => void, 
+    key: string,
+    handler: (newValue: any, oldValue: any) => void,
     delay: number = 300
   ) {
-    let timeoutId: number
+    let timeoutId: number;
 
     const debouncedHandler = (newValue: any, oldValue: any) => {
-      clearTimeout(timeoutId)
-      timeoutId = window.setTimeout(() => handler(newValue, oldValue), delay)
-    }
+      clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(() => handler(newValue, oldValue), delay);
+    };
 
-    this.watch(key, debouncedHandler)
+    this.watch(key, debouncedHandler);
   }
 
   static unwatch(key: string) {
-    delete this.handlers[key]
+    delete this.handlers[key];
   }
 
   static clearWatchers() {
-    this.handlers = {}
+    this.handlers = {};
   }
 
   static destroy() {
-    this.channel.close()
-    this.handlers = {}
-    localStorage.setItem = this.originalSetItem
-    this.isInitialized = false
+    this.channel.close();
+    this.handlers = {};
+    localStorage.setItem = this.originalSetItem;
+    this.isInitialized = false;
   }
 }
 
-export default LocalStorageWatcher
+export default LocalStorageWatcher;
